@@ -16,13 +16,16 @@ class AuthController extends Controller
     {
         $user = User::create([
             'name' => $request->name,
+            'phone' => $request->phone,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'address' => $request->address,
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
         ]);
-
+    
         return response()->json(['message' => 'Usuario registrado exitosamente', 'user' => $user]);
     }
-
     public function login(Request $request)
     {
         $credentials = $request->only('email', 'password');
