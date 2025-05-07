@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Category; 
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 
@@ -22,14 +23,14 @@ class ProductController extends Controller
             'name'        => 'required|string|max:255',
             'description' => 'nullable|string',
             'price'       => 'required|numeric',
-            'image'       => 'nullable|file|image|max:2048' // acepta imagen
+            'image'       => 'nullable|file|image|max:2048',
+            'category_id' => 'required|exists:categories,id' // 👈 validar que exista
         ]);
     
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
     
-        // Guardar imagen si viene
         $imagePath = null;
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('products', 'public');
@@ -39,7 +40,8 @@ class ProductController extends Controller
             'name'        => $request->name,
             'description' => $request->description,
             'price'       => $request->price,
-            'image'       => $imagePath
+            'image'       => $imagePath,
+            'category_id' => $request->category_id // 👈 aquí se guarda
         ]);
     
         return response()->json([
@@ -47,6 +49,7 @@ class ProductController extends Controller
             'product' => $product
         ], 201);
     }
+    
     
 
     // Mostrar un producto específico
@@ -63,35 +66,38 @@ class ProductController extends Controller
 
     // Actualizar producto
     public function update(Request $request, $id)
-    {
-        $product = Product::findOrFail($id);
-    
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric',
-            'image' => 'nullable|file|image|max:2048'
-        ]);
-    
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-    
-        // Subir imagen si viene nueva
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('products', 'public');
-            $product->image = $imagePath;
-        }
-    
-        // Actualizar el resto
-        $product->name = $request->name;
-        $product->description = $request->description;
-        $product->price = $request->price;
-    
-        $product->save();
-    
-        return response()->json(['message' => 'Producto actualizado', 'product' => $product]);
+{
+    $product = Product::findOrFail($id);
+
+    $validator = Validator::make($request->all(), [
+        'name' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'price' => 'required|numeric',
+        'image' => 'nullable|file|image|max:2048',
+        'category_id' => 'required|exists:categories,id' // ✅ nueva regla
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json($validator->errors(), 422);
     }
+
+    // Subir imagen si viene nueva
+    if ($request->hasFile('image')) {
+        $imagePath = $request->file('image')->store('products', 'public');
+        $product->image = $imagePath;
+    }
+
+    // Actualizar datos
+    $product->name = $request->name;
+    $product->description = $request->description;
+    $product->price = $request->price;
+    $product->category_id = $request->category_id; // ✅ nueva línea
+
+    $product->save();
+
+    return response()->json(['message' => 'Producto actualizado', 'product' => $product]);
+}
+
     
 
     // Eliminar producto
@@ -109,5 +115,10 @@ class ProductController extends Controller
         return response()->json(['message' => 'Producto e imagen eliminados']);
     }
     
-    
+    public function byCategory($id)
+    {
+        $products = Product::where('category_id', $id)->get();
+        return response()->json($products);
+    }
+
 }
