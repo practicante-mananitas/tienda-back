@@ -42,6 +42,7 @@ Route::get('/categories', [CategoryController::class, 'index']);
 
 Route::get('/products/category/{id}', [ProductController::class, 'byCategory']);
 
+Route::middleware('auth:api')->post('/address', [AddressController::class, 'store']);
 
 
 

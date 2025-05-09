@@ -6,6 +6,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use App\Models\Cart;
+use App\Models\Address;
 
 class User extends Authenticatable implements JWTSubject
 {
@@ -45,4 +46,10 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasMany(Order::class);
     }
+
+    public function address()
+    {
+        return $this->hasOne(Address::class);
+    }
+
 }
