@@ -6,6 +6,8 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\AddressController;
+use App\Http\Controllers\EstadoController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -44,5 +46,6 @@ Route::get('/products/category/{id}', [ProductController::class, 'byCategory']);
 
 Route::middleware('auth:api')->post('/address', [AddressController::class, 'store']);
 
-
+Route::get('/estados', [EstadoController::class, 'index']);
+Route::get('/estados/{id}/municipios', [EstadoController::class, 'municipios']);
 
