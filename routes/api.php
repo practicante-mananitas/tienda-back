@@ -49,3 +49,11 @@ Route::middleware('auth:api')->post('/address', [AddressController::class, 'stor
 Route::get('/estados', [EstadoController::class, 'index']);
 Route::get('/estados/{id}/municipios', [EstadoController::class, 'municipios']);
 
+Route::post('/direccion-extra', [AddressController::class, 'guardarInfoExtra']);
+
+Route::get('/direccion-completa/{id}', [AddressController::class, 'direccionCompleta']);
+
+Route::get('/address', [AddressController::class, 'index']);
+
+Route::put('/address/{id}', [AddressController::class, 'update']);
+

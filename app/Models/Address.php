@@ -26,4 +26,9 @@ class Address extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function extraInfo()
+    {
+        return $this->hasOne(AddressExtra::class);
+    }
+
 }
