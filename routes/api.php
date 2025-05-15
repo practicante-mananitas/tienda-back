@@ -8,6 +8,7 @@ use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\AddressController;
 use App\Http\Controllers\EstadoController;
+use App\Http\Controllers\API\ShippingController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -56,4 +57,7 @@ Route::get('/direccion-completa/{id}', [AddressController::class, 'direccionComp
 Route::get('/address', [AddressController::class, 'index']);
 
 Route::put('/address/{id}', [AddressController::class, 'update']);
+
+
+Route::post('/cotizar-envio', [ShippingController::class, 'cotizarEnvio']);
 

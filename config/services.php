@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'skydropx' => [
+    'key' => env('SKYDROPX_API_KEY'),
+    ],
+
+
 ];
