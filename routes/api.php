@@ -58,6 +58,10 @@ Route::get('/address', [AddressController::class, 'index']);
 
 Route::put('/address/{id}', [AddressController::class, 'update']);
 
-
 Route::post('/cotizar-envio', [ShippingController::class, 'cotizarEnvio']);
+
+Route::post('/shipping/quote', [ShippingController::class, 'quote']);
+
+Route::post('/envio/costo', [ShippingController::class, 'calcularCosto']);
+
 
