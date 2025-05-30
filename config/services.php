@@ -37,6 +37,9 @@ return [
 
     'skydropx' => [
     'key' => env('SKYDROPX_API_KEY'),
+    'client_id' => env('SKYDROPX_CLIENT_ID'),
+    'client_secret' => env('SKYDROPX_CLIENT_SECRET'),
+    'token_url' => env('SKYDROPX_TOKEN_URL'),
     ],
 
 

@@ -9,6 +9,9 @@ use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\AddressController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\API\ShippingController;
+use App\Http\Controllers\API\PaymentsController;
+use App\Http\Controllers\API\MercadoPagoWebhookController;
+use App\Http\Controllers\API\PedidoController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -64,4 +67,14 @@ Route::post('/shipping/quote', [ShippingController::class, 'quote']);
 
 Route::post('/envio/costo', [ShippingController::class, 'calcularCosto']);
 
+// Route::post('/pago/preferencia', [\App\Http\Controllers\API\PaymentsController::class, 'createPreference']);
 
+Route::post('/webhook/mercadopago', [\App\Http\Controllers\API\MercadoPagoWebhookController::class, 'handle']);
+
+Route::middleware('auth:api')->post('/pago/preferencia', [PaymentsController::class, 'createPreference']);
+
+Route::middleware('auth:api')->get('/ultimo-pedido', [PedidoController::class, 'ultimo']);
+
+Route::middleware('auth:api')->get('/mis-pedidos', [PedidoController::class, 'misPedidos']);
+
+Route::middleware('auth:api')->post('/repeat-pedido/{id}', [PedidoController::class, 'repeatPedido']);

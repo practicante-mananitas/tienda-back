@@ -11,9 +11,18 @@ use Illuminate\Support\Facades\DB;
 
 class ShippingController extends Controller
 {
+
+    protected $skydropx;
+
+    public function __construct(SkydropxService $skydropx)
+    {
+        $this->skydropx = $skydropx;
+    }
+
    public function quote(Request $request)
 {
     $address = Address::find($request->address_id);
+    $token = $this->skydropx->getAccessToken();
     $items = $request->items;
 
     if (!$address || !$items || count($items) === 0) {
@@ -38,7 +47,7 @@ class ShippingController extends Controller
     }
 
     $response = Http::withHeaders([
-        'Authorization' => 'Bearer ' . env('SKYDROPX_API_KEY_PROD'),
+        'Authorization' => 'Bearer ' . $token,
         'Content-Type' => 'application/json',
     ])->post('https://api-pro.skydropx.com/api/v1/quotations', [
         "quotation" => [
@@ -90,7 +99,7 @@ class ShippingController extends Controller
     if (!($data['is_completed'] ?? false)) {
         sleep(2);
         $followUpResponse = Http::withHeaders([
-            'Authorization' => 'Bearer ' . env('SKYDROPX_API_KEY_PROD'),
+            'Authorization' => 'Bearer ' . $token,
             'Content-Type' => 'application/json',
         ])->get("https://api-pro.skydropx.com/api/v1/quotations/" . $data['id']);
 
