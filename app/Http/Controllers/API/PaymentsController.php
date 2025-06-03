@@ -50,13 +50,13 @@ class PaymentsController extends Controller
         $payload = [
             'items' => $mpItems,
             'back_urls' => [
-                'success' => 'https://0c0e-2806-104e-1b-4128-55a4-6517-1fce-5804.ngrok-free.app/#/pago/exito',
-                'failure' => 'https://0c0e-2806-104e-1b-4128-55a4-6517-1fce-5804.ngrok-free.app/pago/error',
-                'pending' => 'https://0c0e-2806-104e-1b-4128-55a4-6517-1fce-5804.ngrok-free.app/pago/pendiente',
+                'success' => 'https://8c4f-148-230-223-134.ngrok-free.app/#/pago/exito',
+                'failure' => 'https://8c4f-148-230-223-134.ngrok-free.app/pago/error',
+                'pending' => 'https://8c4f-148-230-223-134.ngrok-free.app/pago/pendiente',
             ],
             'auto_return' => 'approved',
             'external_reference' => uniqid('pedido-'),
-            'notification_url' => 'https://447b-2806-104e-1b-4128-55a4-6517-1fce-5804.ngrok-free.app/api/webhook/mercadopago',
+            'notification_url' => 'https://0427-148-230-223-134.ngrok-free.app/api/webhook/mercadopago',
             'metadata' => [
                 'address_id' => $request->address_id,
                 'user_id' => auth()->id(), // 👌 ya no necesitas confiar en lo que venga del frontend

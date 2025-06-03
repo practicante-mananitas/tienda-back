@@ -12,6 +12,7 @@ use App\Http\Controllers\API\ShippingController;
 use App\Http\Controllers\API\PaymentsController;
 use App\Http\Controllers\API\MercadoPagoWebhookController;
 use App\Http\Controllers\API\PedidoController;
+use App\Http\Controllers\API\HighlightSectionController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -78,3 +79,6 @@ Route::middleware('auth:api')->get('/ultimo-pedido', [PedidoController::class, '
 Route::middleware('auth:api')->get('/mis-pedidos', [PedidoController::class, 'misPedidos']);
 
 Route::middleware('auth:api')->post('/repeat-pedido/{id}', [PedidoController::class, 'repeatPedido']);
+
+Route::get('/highlight-sections', [HighlightSectionController::class, 'index']);
+Route::post('/highlight-sync', [HighlightSectionController::class, 'sync']);
