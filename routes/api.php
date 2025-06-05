@@ -46,6 +46,7 @@ Route::middleware('auth:api')->post('/orders/repeat/{id}', [OrderController::cla
 
 
 Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/categorias/{id}/productos', [CategoryController::class, 'productosPorCategoria']);
 
 Route::get('/products/category/{id}', [ProductController::class, 'byCategory']);
 

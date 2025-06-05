@@ -13,4 +13,16 @@ class CategoryController extends Controller
     {
         return response()->json(Category::all());
     }
+
+    public function productosPorCategoria($id)
+    {
+        $category = Category::with('products')->find($id);
+
+        if (!$category) {
+            return response()->json(['message' => 'Categoría no encontrada'], 404);
+        }
+
+        return response()->json($category->products);
+    }
+
 }

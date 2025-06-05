@@ -17,41 +17,51 @@ class ProductController extends Controller
     }
 
     // Crear un nuevo producto
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price'       => 'required|numeric',
-            'image'       => 'nullable|file|image|max:2048',
-            'category_id' => 'required|exists:categories,id' // 👈 validar que exista
-        ]);
-    
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-    
-        $imagePath = null;
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('products', 'public');
-        }
-    
-        $product = Product::create([
-            'name'        => $request->name,
-            'description' => $request->description,
-            'price'       => $request->price,
-            'image'       => $imagePath,
-            'category_id' => $request->category_id // 👈 aquí se guarda
-        ]);
-    
-        return response()->json([
-            'message' => 'Producto creado exitosamente',
-            'product' => $product
-        ], 201);
-    }
-    
-    
+public function store(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'name'        => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'price'       => 'required|numeric',
+        'image'       => 'nullable|file|image|max:2048',
+        'category_id' => 'required|exists:categories,id',
 
+        // 👇 Agrega validaciones para medidas
+        'weight'      => 'required|numeric|min:0',
+        'height'      => 'required|numeric|min:0',
+        'width'       => 'required|numeric|min:0',
+        'length'      => 'required|numeric|min:0',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json($validator->errors(), 422);
+    }
+
+    $imagePath = null;
+    if ($request->hasFile('image')) {
+        $imagePath = $request->file('image')->store('products', 'public');
+    }
+
+    $product = Product::create([
+        'name'        => $request->name,
+        'description' => $request->description,
+        'price'       => $request->price,
+        'image'       => $imagePath,
+        'category_id' => $request->category_id,
+
+        // 👇 Guardar medidas
+        'weight'      => $request->weight,
+        'height'      => $request->height,
+        'width'       => $request->width,
+        'length'      => $request->length,
+    ]);
+
+    return response()->json([
+        'message' => 'Producto creado exitosamente',
+        'product' => $product
+    ], 201);
+}
+    
     // Mostrar un producto específico
     public function show($id)
     {

@@ -6,7 +6,7 @@ return [
 
     'allowed_methods' => ['*'], // Permitir GET, POST, PUT, DELETE, etc.
 
-    'allowed_origins' => ['http://localhost:4200', 'https://8c4f-148-230-223-134.ngrok-free.app',], // Permitir Angular local
+    'allowed_origins' => ['http://localhost:4200', 'https://ec43-2806-104e-1b-ead-4d37-b56d-ae4-6dc6.ngrok-free.app',], // Permitir Angular local
 
     'allowed_origins_patterns' => [],
 
