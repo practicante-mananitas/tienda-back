@@ -63,7 +63,7 @@ Route::get('/address', [AddressController::class, 'index']);
 
 Route::put('/address/{id}', [AddressController::class, 'update']);
 
-Route::post('/cotizar-envio', [ShippingController::class, 'cotizarEnvio']);
+Route::middleware(['auth:api'])->post('/shipping/quote', [ShippingController::class, 'quote']);
 
 Route::post('/shipping/quote', [ShippingController::class, 'quote']);
 
@@ -83,3 +83,10 @@ Route::middleware('auth:api')->post('/repeat-pedido/{id}', [PedidoController::cl
 
 Route::get('/highlight-sections', [HighlightSectionController::class, 'index']);
 Route::post('/highlight-sync', [HighlightSectionController::class, 'sync']);
+
+Route::get('/pedidos/excedidos', [PedidoController::class, 'excedidos']);
+
+
+// routes/api.php
+Route::get('/admin/pedidos', [PedidoController::class, 'index']);
+Route::get('/admin/pedidos/{id}/items', [PedidoController::class, 'items']);

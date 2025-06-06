@@ -27,10 +27,10 @@ public function store(Request $request)
         'category_id' => 'required|exists:categories,id',
 
         // 👇 Agrega validaciones para medidas
-        'weight'      => 'required|numeric|min:0',
-        'height'      => 'required|numeric|min:0',
-        'width'       => 'required|numeric|min:0',
-        'length'      => 'required|numeric|min:0',
+        'weight'      => 'required|numeric|min:0.1',
+        'height'      => 'required|numeric|min:0.1',
+        'width'       => 'required|numeric|min:0.1',
+        'length'      => 'required|numeric|min:0.1',
     ]);
 
     if ($validator->fails()) {
@@ -75,40 +75,54 @@ public function store(Request $request)
     }
 
     // Actualizar producto
-    public function update(Request $request, $id)
+   public function update(Request $request, $id)
 {
     $product = Product::findOrFail($id);
 
     $validator = Validator::make($request->all(), [
-        'name' => 'required|string|max:255',
+        'name'        => 'required|string|max:255',
         'description' => 'nullable|string',
-        'price' => 'required|numeric',
-        'image' => 'nullable|file|image|max:2048',
-        'category_id' => 'required|exists:categories,id' // ✅ nueva regla
+        'price'       => 'required|numeric',
+        'image'       => 'nullable|file|image|max:2048',
+        'category_id' => 'required|exists:categories,id',
+
+        // 👇 Validaciones de medidas
+        'weight' => 'required|numeric|min:0.01',
+        'height'      => 'nullable|numeric|min:0.1',
+        'width'       => 'nullable|numeric|min:0.1',
+        'length'      => 'nullable|numeric|min:0.1',
     ]);
 
     if ($validator->fails()) {
         return response()->json($validator->errors(), 422);
     }
 
-    // Subir imagen si viene nueva
+    // Subir nueva imagen si se envió
     if ($request->hasFile('image')) {
-        $imagePath = $request->file('image')->store('products', 'public');
-        $product->image = $imagePath;
+        // Eliminar imagen anterior si existe
+        if ($product->image && Storage::disk('public')->exists($product->image)) {
+            Storage::disk('public')->delete($product->image);
+        }
+
+        $product->image = $request->file('image')->store('products', 'public');
     }
 
-    // Actualizar datos
-    $product->name = $request->name;
+    // Actualizar campos básicos
+    $product->name        = $request->name;
     $product->description = $request->description;
-    $product->price = $request->price;
-    $product->category_id = $request->category_id; // ✅ nueva línea
+    $product->price       = $request->price;
+    $product->category_id = $request->category_id;
+
+    // 👇 Actualizar medidas
+    $product->weight = $request->input('weight');
+    $product->height = $request->input('height');
+    $product->width  = $request->input('width');
+    $product->length = $request->input('length');
 
     $product->save();
 
     return response()->json(['message' => 'Producto actualizado', 'product' => $product]);
 }
-
-    
 
     // Eliminar producto
     public function destroy($id)

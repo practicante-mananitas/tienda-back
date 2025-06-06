@@ -21,6 +21,7 @@ class ShippingController extends Controller
 
    public function quote(Request $request)
 {
+    $user = auth('api')->user(); // 👈 fuerza el guard correcto
     $address = Address::find($request->address_id);
     $token = $this->skydropx->getAccessToken();
     $items = $request->items;
@@ -45,6 +46,44 @@ class ShippingController extends Controller
         $totalParcel['width']  += $product->width  * $item['quantity'];
         $totalParcel['length'] += $product->length * $item['quantity'];
     }
+
+    // ✅ Calcular peso volumétrico
+    $pesoVolumetrico = ($totalParcel['height'] * $totalParcel['width'] * $totalParcel['length']) / 5000;
+    $pesoFacturable = max($totalParcel['weight'], $pesoVolumetrico);
+
+    // ✅ Si es menor a 1, subirlo a 1
+    if ($pesoFacturable < 1) {
+        $pesoFacturable = 1;
+    }
+
+    // ✅ Actualizar el peso a usar para cotización
+    $totalParcel['weight'] = $pesoFacturable;
+
+
+if ($this->requiereEnvioManual($totalParcel)) {
+    foreach ($items as $item) {
+        $product = Product::find($item['product_id']);
+        if (!$product) continue;
+
+        DB::table('envios_manual')->insert([
+            'user_id'    => $user->id,
+            'address_id' => $address->id,
+            'peso'       => $product->weight * $item['quantity'],
+            'alto'       => $product->height,
+            'ancho'      => $product->width,
+            'largo'      => $product->length,
+            'product_id' => $product->id,
+            'cantidad'   => $item['quantity'],
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+    }
+
+    return response()->json([
+        'manual' => true,
+        'message' => 'Este pedido será cotizado manualmente. Recibirás el costo por correo.'
+    ]);
+}
 
     $response = Http::withHeaders([
         'Authorization' => 'Bearer ' . $token,
@@ -96,20 +135,34 @@ class ShippingController extends Controller
     $data = $response->json();
 
     // Si la cotización aún no está lista, esperar y volver a consultar
-    if (!($data['is_completed'] ?? false)) {
-        sleep(2);
+if (!($data['is_completed'] ?? false)) {
+    $reintentos = 0;
+    do {
+        sleep(2); // espera 2 segundos
         $followUpResponse = Http::withHeaders([
             'Authorization' => 'Bearer ' . $token,
             'Content-Type' => 'application/json',
         ])->get("https://api-pro.skydropx.com/api/v1/quotations/" . $data['id']);
 
-        \Log::info('Follow-up response', ['body' => $followUpResponse->json()]);
-        if (!$followUpResponse->successful()) {
-            return response()->json(['error' => 'La cotización no pudo completarse.'], 500);
+        \Log::info("Follow-up intento #" . ($reintentos + 1), [
+            'status' => $followUpResponse->status(),
+            'body' => $followUpResponse->json()
+        ]);
+
+        $reintentos++;
+        $data = $followUpResponse->json();
+
+        if (!isset($data['is_completed'])) {
+            $data['is_completed'] = false;
         }
 
-        $data = $followUpResponse->json();
+    } while (!$data['is_completed'] && $reintentos < 3);
+
+    if (!$data['is_completed']) {
+        return response()->json(['error' => 'La cotización no pudo completarse tras varios intentos.'], 500);
     }
+}
+
 
     // Filtrar tarifas válidas
     $rates = collect($data['rates'] ?? [])->filter(function ($r) {
@@ -163,20 +216,13 @@ class ShippingController extends Controller
         ]);
     }
 
+private function requiereEnvioManual(array $parcel): bool
+{
+    $pesoVolumetrico = ($parcel['height'] * $parcel['width'] * $parcel['length']) / 5000;
+    $pesoFacturable = max($parcel['weight'], $pesoVolumetrico);
 
-public function calcularCosto(Request $request)
-    {
-        $cp_origen = $request->cp_origen;
-        $cp_destino = $request->cp_destino;
-
-        $costo = DB::table('shipping_rates')
-            ->where('cp_origen', $cp_origen)
-            ->whereRaw('? BETWEEN cp_destino_inicio AND cp_destino_fin', [$cp_destino])
-            ->orderBy('costo_envio')
-            ->value('costo_envio');
-
-        return response()->json(['costo' => $costo ?? 0]);
-    } 
+    return $pesoFacturable > 50;
+}
 
 }
 
