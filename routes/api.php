@@ -13,6 +13,8 @@ use App\Http\Controllers\API\PaymentsController;
 use App\Http\Controllers\API\MercadoPagoWebhookController;
 use App\Http\Controllers\API\PedidoController;
 use App\Http\Controllers\API\HighlightSectionController;
+use App\Http\Controllers\API\AdminController;
+use App\Http\Controllers\API\AdminResumenController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -88,5 +90,25 @@ Route::get('/pedidos/excedidos', [PedidoController::class, 'excedidos']);
 
 
 // routes/api.php
-Route::get('/admin/pedidos', [PedidoController::class, 'index']);
-Route::get('/admin/pedidos/{id}/items', [PedidoController::class, 'items']);
+
+Route::middleware('auth:api')->prefix('admin')->group(function () {
+    // Tus rutas existentes para pedidos
+    Route::get('/pedidos', [AdminController::class, 'index']); // O PedidoController si es el que usas
+    Route::get('/pedidos/{id}/items', [AdminController::class, 'items']); // O PedidoController
+
+    // === NUEVA RUTA PARA LOS DETALLES COMPLETOS DEL PEDIDO ===
+    Route::get('/pedidos/{id}/details', [AdminController::class, 'showPedidoDetails']);
+});
+
+Route::put('products/{id}/status', [ProductController::class, 'updateStatus']); // <--- NUEVA RUTA
+
+Route::prefix('admin')->group(function () {
+    Route::put('pedidos/{id}/shipment-status', [PedidoController::class, 'updateShipmentStatus']);
+});
+
+Route::middleware('auth:api')->prefix('admin')->group(function () {
+    Route::get('resumen/pedidos-pendientes', [AdminResumenController::class, 'pedidosPendientes']);
+    Route::get('resumen/productos-bajo-stock', [AdminResumenController::class, 'productosBajoStock']);
+    Route::get('resumen/pedidos-retrasados', [AdminResumenController::class, 'pedidosRetrasados']);
+});
+
