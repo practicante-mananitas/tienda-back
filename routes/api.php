@@ -15,6 +15,7 @@ use App\Http\Controllers\API\PedidoController;
 use App\Http\Controllers\API\HighlightSectionController;
 use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\AdminResumenController;
+use App\Http\Controllers\API\AdminFinanzasController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -110,5 +111,8 @@ Route::middleware('auth:api')->prefix('admin')->group(function () {
     Route::get('resumen/pedidos-pendientes', [AdminResumenController::class, 'pedidosPendientes']);
     Route::get('resumen/productos-bajo-stock', [AdminResumenController::class, 'productosBajoStock']);
     Route::get('resumen/pedidos-retrasados', [AdminResumenController::class, 'pedidosRetrasados']);
+    Route::get('resumen/productos-categoria', [AdminResumenController::class, 'productosPorCategorianuevo']);
+    Route::get('finanzas/resumen', [AdminFinanzasController::class, 'resumenFinanzas']);
 });
+
 

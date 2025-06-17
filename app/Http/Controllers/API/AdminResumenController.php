@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;  // <-- Agrega esta línea
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Models\Pedido;
 use App\Models\Product;
@@ -40,5 +41,16 @@ class AdminResumenController extends Controller
             'count' => $retrasados->count(),
             'pedidos' => $retrasados,
         ]);
+    }
+
+    public function productosPorCategorianuevo()
+    {
+        $datos = DB::table('products')
+            ->join('categories', 'products.category_id', '=', 'categories.id')
+            ->select('categories.name as categoria', DB::raw('count(*) as total'))
+            ->groupBy('categories.name')
+            ->get();
+
+        return response()->json($datos);
     }
 }

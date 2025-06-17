@@ -22,28 +22,46 @@ class AuthController extends Controller
             'address' => $request->address,
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
+            'role' => 'user', // <- aquí lo forzamos
         ]);
-    
+
         return response()->json(['message' => 'Usuario registrado exitosamente', 'user' => $user]);
     }
-    public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
-    
-        if (!$token = JWTAuth::attempt($credentials)) {
-            return response()->json(['message' => 'Credenciales incorrectas'], 401);
-        }
-    
-        return response()->json([
-            'access_token' => $token,
-            'token_type' => 'bearer',
-            'expires_in' => auth('api')->factory()->getTTL() * 60
-        ]);
+
+   public function login(Request $request)
+{
+    $credentials = $request->only('email', 'password');
+
+    if (!$token = JWTAuth::attempt($credentials)) {
+        return response()->json(['message' => 'Credenciales incorrectas'], 401);
     }
 
-    public function me()
-    {
-        return response()->json(auth('api')->user());
+    $user = JWTAuth::setToken($token)->toUser();
+
+    return response()->json([
+        'access_token' => $token,
+        'token_type' => 'bearer',
+        'expires_in' => auth('api')->factory()->getTTL() * 60,
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+        ]
+    ]);
+}
+
+
+
+public function me()
+{
+    try {
+        $user = JWTAuth::parseToken()->authenticate();
+        return response()->json($user);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Token no válido o expirado'], 401);
     }
+}
+
     
 }
