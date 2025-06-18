@@ -76,15 +76,6 @@ class AdminController extends Controller
         return response()->json($pedido);
     }
 
-    public function productosPorCategorianuevo()
-{
-    $datos = DB::table('productos')
-        ->join('categorias', 'productos.categoria_id', '=', 'categorias.id')
-        ->select('categorias.nombre as categoria', DB::raw('count(*) as total'))
-        ->groupBy('categoria')
-        ->get();
 
-    return response()->json($datos);
-}
 
 }
