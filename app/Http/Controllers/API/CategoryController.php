@@ -25,4 +25,15 @@ class CategoryController extends Controller
         return response()->json($category->products);
     }
 
+    public function show($id)
+    {
+        $category = Category::find($id);
+
+        if (!$category) {
+            return response()->json(['message' => 'Categoría no encontrada'], 404);
+        }
+
+        return response()->json($category);
+    }
+
 }

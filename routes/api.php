@@ -17,6 +17,8 @@ use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\AdminResumenController;
 use App\Http\Controllers\API\AdminFinanzasController;
 use App\Http\Controllers\API\UsuarioController;
+use App\Http\Controllers\API\Subcategorycontroller;
+
 use App\Http\Middleware\ActualizarUltimaActividad;
 use App\Http\Middleware\CheckRevokedToken;
 
@@ -109,3 +111,6 @@ Route::middleware(['auth:api', ActualizarUltimaActividad::class, CheckRevokedTok
 });
 
 Route::middleware('auth:api')->post('/logout', [AuthController::class, 'logout']);
+
+Route::get('categories/{id}', [CategoryController::class, 'show']);
+Route::get('subcategories/category/{id}', [SubcategoryController::class, 'getByCategory']);
