@@ -18,20 +18,22 @@ class ProductController extends Controller
     }
 
     // Crear un nuevo producto
-    public function store(Request $request)
+   public function store(Request $request)
     {
-        // Reglas de validación, incluyendo el nuevo campo 'stock'
+        // Reglas de validación
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price'       => 'required|numeric|min:0', // El precio no debe ser negativo
-            'image'       => 'nullable|file|image|max:2048',
-            'category_id' => 'required|exists:categories,id',
-            'weight'      => 'required|numeric|min:0.01', // Peso mínimo de 0.01
-            'height'      => 'required|numeric|min:0.01',
-            'width'       => 'required|numeric|min:0.01',
-            'length'      => 'required|numeric|min:0.01',
-            'stock'       => 'required|integer|min:0', // <--- NUEVA VALIDACIÓN: Stock como entero no negativo
+            'name'            => 'required|string|max:255',
+            'description'     => 'nullable|string',
+            'price'           => 'required|numeric|min:0',
+            'image'           => 'nullable|file|image|max:2048',
+            'category_id'     => 'required|exists:categories,id',
+            'weight'          => 'required|numeric|min:0.01',
+            'height'          => 'required|numeric|min:0.01',
+            'width'           => 'required|numeric|min:0.01',
+            'length'          => 'required|numeric|min:0.01',
+            'stock'           => 'required|integer|min:0',
+            'subcategory_id'  => 'required|exists:subcategories,id',
+            'gallery.*'       => 'nullable|image|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -44,31 +46,42 @@ class ProductController extends Controller
             $imagePath = $request->file('image')->store('products', 'public');
         }
 
-        // Crear el producto, incluyendo el campo 'stock'
+        // Crear el producto
         $product = Product::create([
-            'name'        => $request->name,
-            'description' => $request->description,
-            'price'       => $request->price,
-            'image'       => $imagePath,
-            'category_id' => $request->category_id,
-            'weight'      => $request->weight,
-            'height'      => $request->height,
-            'width'       => $request->width,
-            'length'      => $request->length,
-            'stock'       => $request->stock, // <--- GUARDAR EL STOCK
+            'name'           => $request->name,
+            'description'    => $request->description,
+            'price'          => $request->price,
+            'image'          => $imagePath,
+            'category_id'    => $request->category_id,
+            'weight'         => $request->weight,
+            'height'         => $request->height,
+            'width'          => $request->width,
+            'length'         => $request->length,
+            'stock'          => $request->stock,
+            'subcategory_id' => $request->subcategory_id,
         ]);
 
+        // 🔽 Agregar múltiples imágenes si se suben
+        if ($request->hasFile('gallery')) {
+            foreach ($request->file('gallery') as $imageFile) {
+                $path = $imageFile->store('products', 'public');
+                $product->images()->create(['image' => $path]);
+            }
+        }
+
         Log::info('ProductController@store: Producto creado exitosamente', ['product_id' => $product->id]);
+
         return response()->json([
             'message' => 'Producto creado exitosamente',
             'product' => $product
         ], 201);
     }
+
     
     // Mostrar un producto específico
     public function show($id)
     {
-        $product = Product::find($id);
+        $product = Product::with('images')->find($id);
 
         if (!$product) {
             Log::warning('ProductController@show: Producto no encontrado', ['product_id' => $id]);
@@ -83,18 +96,20 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
 
-        // Reglas de validación, incluyendo el nuevo campo 'stock'
+        // Reglas de validación
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price'       => 'required|numeric|min:0',
-            'image'       => 'nullable|file|image|max:2048',
-            'category_id' => 'required|exists:categories,id',
-            'weight'      => 'required|numeric|min:0.01',
-            'height'      => 'nullable|numeric|min:0.01', // nullable para que no sea obligatorio en update si no se envía
-            'width'       => 'nullable|numeric|min:0.01',
-            'length'      => 'nullable|numeric|min:0.01',
-            'stock'       => 'required|integer|min:0', // <--- NUEVA VALIDACIÓN PARA UPDATE: Stock como entero no negativo
+            'name'             => 'required|string|max:255',
+            'description'      => 'nullable|string',
+            'price'            => 'required|numeric|min:0',
+            'image'            => 'nullable|file|image|max:2048',
+            'category_id'      => 'required|exists:categories,id',
+            'subcategory_id'   => 'required|exists:subcategories,id',
+            'weight'           => 'required|numeric|min:0.01',
+            'height'           => 'nullable|numeric|min:0.01',
+            'width'            => 'nullable|numeric|min:0.01',
+            'length'           => 'nullable|numeric|min:0.01',
+            'stock'            => 'required|integer|min:0',
+            'gallery.*'        => 'nullable|image|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -102,36 +117,46 @@ class ProductController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        // Subir nueva imagen si se envió
+        // Imagen principal
         if ($request->hasFile('image')) {
-            // Eliminar imagen anterior si existe
             if ($product->image && Storage::disk('public')->exists($product->image)) {
                 Storage::disk('public')->delete($product->image);
             }
             $product->image = $request->file('image')->store('products', 'public');
         }
 
-        // Actualizar campos básicos
-        $product->name        = $request->name;
-        $product->description = $request->description;
-        $product->price       = $request->price;
-        $product->category_id = $request->category_id;
-
-        // Actualizar medidas
-        $product->weight = $request->input('weight');
-        // Asegúrate de que las medidas se actualicen si se envían (pueden ser nulas en la request si son nullable)
-        $product->height = $request->input('height');
-        $product->width  = $request->input('width');
-        $product->length = $request->input('length');
-        
-        // <--- ACTUALIZAR EL STOCK
-        $product->stock = $request->stock; 
+        // Actualizar campos
+        $product->name           = $request->name;
+        $product->description    = $request->description;
+        $product->price          = $request->price;
+        $product->category_id    = $request->category_id;
+        $product->subcategory_id = $request->subcategory_id;
+        $product->weight         = $request->weight;
+        $product->height         = $request->height;
+        $product->width          = $request->width;
+        $product->length         = $request->length;
+        $product->stock          = $request->stock;
 
         $product->save();
 
+        // 🚨 Agregar imágenes de galería si vienen nuevas
+        if ($request->hasFile('gallery')) {
+            foreach ($request->file('gallery') as $galleryImage) {
+                $path = $galleryImage->store('products/gallery', 'public');
+
+                $product->images()->create([
+                    'image' => $path
+                ]);
+            }
+        }
+
         Log::info('ProductController@update: Producto actualizado exitosamente', ['product_id' => $product->id]);
-        return response()->json(['message' => 'Producto actualizado', 'product' => $product]);
+        return response()->json([
+            'message' => 'Producto actualizado',
+            'product' => $product
+        ]);
     }
+
 
     // Eliminar producto
     public function destroy($id)

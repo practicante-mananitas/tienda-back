@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\CategoryController;
@@ -28,9 +29,10 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::middleware(['auth:api', CheckRevokedToken::class])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
-    Route::post('/products', [ProductController::class, 'store']);
+    Route::post('/products', [ProductController::class, 'store']); 
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
+    Route::delete('/gallery-images/{id}', [ProductImageController::class, 'destroy']);
 });
 
 

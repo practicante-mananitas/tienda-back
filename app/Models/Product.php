@@ -21,6 +21,7 @@ class Product extends Model
         'length',
         'stock',
         'status',
+        'subcategory_id',
     ];
 
         protected $casts = [
@@ -41,6 +42,11 @@ class Product extends Model
     public function highlightSections() 
     {
         return $this->belongsToMany(HighlightSection::class, 'highlight_section_product');
+    }
+
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class);
     }
 
 }
