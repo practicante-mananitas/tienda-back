@@ -16,20 +16,40 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
+            'email' => 'required|email|unique:users,email',
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'regex:/^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/'
+            ],
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+        ], [
+            'password.regex' => 'La contraseña debe tener al menos una mayúscula, un número y un carácter especial.',
+        ]);
+
         $user = User::create([
             'name' => $request->name,
             'phone' => $request->phone,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'address' => $request->address,
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
-            'role' => 'user', // <- aquí lo forzamos
+            'role' => 'user',
         ]);
 
-        return response()->json(['message' => 'Usuario registrado exitosamente', 'user' => $user]);
+        $user->sendEmailVerificationNotification();
+
+        return response()->json([
+            'message' => 'Usuario registrado exitosamente. Revisa tu correo para verificar tu cuenta.',
+            'user' => $user
+        ]);
     }
+
 
 
 
@@ -43,6 +63,12 @@ class AuthController extends Controller
         }
 
         $user = JWTAuth::setToken($token)->toUser();
+
+        // 🚫 Validar que el email esté verificado
+        if (!$user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Debes verificar tu correo electrónico antes de iniciar sesión.'], 403);
+        }
+
         $ip = $request->ip();
 
         // 🧪 Simulación si estás en localhost
@@ -74,7 +100,7 @@ class AuthController extends Controller
             'user_agent' => $request->userAgent(),
             'login_at' => now(),
             'location' => $location,
-            'token' => $token,  // Aquí guardamos el token
+            'token' => $token,
         ]);
 
         return response()->json([
@@ -90,9 +116,6 @@ class AuthController extends Controller
             ]
         ]);
     }
-
-
-
 
     public function me()
     {
@@ -113,5 +136,23 @@ class AuthController extends Controller
             return response()->json(['error' => 'No se pudo cerrar sesión'], 500);
         }
     }
-    
+
+    public function verifyEmail($id, $hash)
+    {
+        $user = User::findOrFail($id);
+
+        if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+            // Firma inválida, manda a página error en frontend
+            return redirect(env('FRONTEND_URL') . '/#/email/verification-failed');
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return redirect(env('FRONTEND_URL') . '/#/email/already-verified');
+        }
+
+        $user->markEmailAsVerified();
+
+        return redirect(env('FRONTEND_URL') . '/#/email-verified');
+    }
+        
 }

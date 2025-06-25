@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
+use App\Http\Controllers\CategoryFeaturedProductController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\CategoryController;
@@ -22,11 +23,12 @@ use App\Http\Controllers\API\Subcategorycontroller;
 
 use App\Http\Middleware\ActualizarUltimaActividad;
 use App\Http\Middleware\CheckRevokedToken;
+use App\Http\Middleware\EnsureEmailIsVerified;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
-Route::middleware(['auth:api', CheckRevokedToken::class])->group(function () {
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     Route::post('/products', [ProductController::class, 'store']); 
@@ -39,7 +41,7 @@ Route::middleware(['auth:api', CheckRevokedToken::class])->group(function () {
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 
-Route::middleware(['auth:api', CheckRevokedToken::class])->group(function () {
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->group(function () {
     Route::get('/cart', [CartController::class, 'index']);
     Route::post('/cart/add', [CartController::class, 'add']);
     Route::post('/cart/remove', [CartController::class, 'remove']);
@@ -47,9 +49,9 @@ Route::middleware(['auth:api', CheckRevokedToken::class])->group(function () {
 });
 
 
-Route::middleware(['auth:api', CheckRevokedToken::class])->post('/orders', [OrderController::class, 'store']);
-Route::middleware(['auth:api', CheckRevokedToken::class])->get('/my-orders', [OrderController::class, 'myOrders']);
-Route::middleware(['auth:api', CheckRevokedToken::class])->post('/orders/repeat/{id}', [OrderController::class, 'repeat']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->post('/orders', [OrderController::class, 'store']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->get('/my-orders', [OrderController::class, 'myOrders']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->post('/orders/repeat/{id}', [OrderController::class, 'repeat']);
 
 
 Route::get('/categories', [CategoryController::class, 'index']);
@@ -60,20 +62,21 @@ Route::middleware('auth:api')->post('/address', [AddressController::class, 'stor
 Route::get('/estados', [EstadoController::class, 'index']);
 Route::get('/estados/{id}/municipios', [EstadoController::class, 'municipios']);
 
-Route::middleware(['auth:api', CheckRevokedToken::class])->post('/direccion-extra', [AddressController::class, 'guardarInfoExtra']);
-Route::middleware(['auth:api', CheckRevokedToken::class])->get('/direccion-completa/{id}', [AddressController::class, 'direccionCompleta']);
-Route::middleware(['auth:api', CheckRevokedToken::class])->get('/address', [AddressController::class, 'index']);
-Route::middleware(['auth:api', CheckRevokedToken::class])->put('/address/{id}', [AddressController::class, 'update']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->post('/direccion-extra', [AddressController::class, 'guardarInfoExtra']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->get('/direccion-completa/{id}', [AddressController::class, 'direccionCompleta']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->get('/address', [AddressController::class, 'index']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->put('/address/{id}', [AddressController::class, 'update']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->delete('direcciones/{id}', [AddressController::class, 'destroy']);
 
 
-Route::middleware(['auth:api', CheckRevokedToken::class])->post('/shipping/quote', [ShippingController::class, 'quote']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->post('/shipping/quote', [ShippingController::class, 'quote']);
 
-Route::middleware(['auth:api', CheckRevokedToken::class])->post('/envio/costo', [ShippingController::class, 'calcularCosto']);
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])->post('/envio/costo', [ShippingController::class, 'calcularCosto']);
 
 
 Route::post('/webhook/mercadopago', [MercadoPagoWebhookController::class, 'handle']);
 
-Route::middleware(['auth:api', CheckRevokedToken::class])
+Route::middleware(['auth:api', CheckRevokedToken::class, EnsureEmailIsVerified::class])
     ->post('/pago/preferencia', [PaymentsController::class, 'createPreference']);
 
 Route::middleware('auth:api')->get('/ultimo-pedido', [PedidoController::class, 'ultimo']);
@@ -102,10 +105,11 @@ Route::middleware('auth:api')->prefix('admin')->group(function () {
     Route::get('resumen/pedidos-retrasados', [AdminResumenController::class, 'pedidosRetrasados']);
     Route::get('resumen/productos-categoria', [AdminResumenController::class, 'productosPorCategorianuevo']);
     Route::get('finanzas/resumen', [AdminFinanzasController::class, 'resumenFinanzas']);
+    Route::get('/categorias-con-subcategorias-productos', [CategoryController::class, 'indexConSubcategoriasYProductos']);
 });
 
 // 🔐 Rutas de seguridad con actividad registrada
-Route::middleware(['auth:api', ActualizarUltimaActividad::class, CheckRevokedToken::class])->group(function () {
+Route::middleware(['auth:api', ActualizarUltimaActividad::class, CheckRevokedToken::class, EnsureEmailIsVerified::class])->group(function () {
     Route::post('/cambiar-contrasena', [UsuarioController::class, 'cambiarContrasena']);
     Route::get('/actividad-reciente', [UsuarioController::class, 'actividadReciente']);
     Route::get('/sesiones-activas', [UsuarioController::class, 'sesionesActivas']);
@@ -116,3 +120,16 @@ Route::middleware('auth:api')->post('/logout', [AuthController::class, 'logout']
 
 Route::get('categories/{id}', [CategoryController::class, 'show']);
 Route::get('subcategories/category/{id}', [SubcategoryController::class, 'getByCategory']);
+
+Route::prefix('admin')->middleware('auth:api')->group(function () {
+    Route::get('categories/{category}/featured-products', [CategoryFeaturedProductController::class, 'index']);
+    Route::post('categories/featured-products', [CategoryFeaturedProductController::class, 'store']);
+    Route::delete('categories/featured-products/{id}', [CategoryFeaturedProductController::class, 'destroy']);
+    
+});
+
+Route::get('categories/{category}/featured-only-products', [CategoryFeaturedProductController::class, 'featuredProducts']);
+
+
+// Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+//     ->name('verification.verify');

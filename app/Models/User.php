@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Notifications\VerifyApiEmail;
 use App\Models\Cart;
 use App\Models\Address;
 
-class User extends Authenticatable implements JWTSubject
+class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 {
     use Notifiable;
 
@@ -17,7 +19,6 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'phone',
-        'address',
         'latitude',
         'longitude',
         'role',
@@ -56,6 +57,11 @@ class User extends Authenticatable implements JWTSubject
     public function loginActivities()
     {
         return $this->hasMany(LoginActivity::class);
+    }
+
+    public function sendEmailVerificationNotification()
+    {
+        $this->notify(new VerifyApiEmail());
     }
 
 }

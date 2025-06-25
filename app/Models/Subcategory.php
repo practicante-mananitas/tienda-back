@@ -17,9 +17,11 @@ class Subcategory extends Model
         return $this->belongsTo(Category::class);
     }
 
-    // Si quieres relacionar productos aquí (opcional)
-    // public function products()
-    // {
-    //     return $this->hasMany(Product::class);
-    // }
+    // En App\Models\Subcategory.php
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
 }

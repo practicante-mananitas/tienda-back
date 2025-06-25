@@ -36,4 +36,9 @@ class CategoryController extends Controller
         return response()->json($category);
     }
 
+    public function indexConSubcategoriasYProductos()
+    {
+        return Category::with('subcategories.products')->get();
+    }
+
 }
