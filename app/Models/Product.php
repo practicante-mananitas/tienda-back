@@ -49,4 +49,10 @@ class Product extends Model
         return $this->hasMany(ProductImage::class);
     }
 
+    public function favoredByUsers()
+    {
+        return $this->belongsToMany(User::class, 'user_favorites');
+    }
+
+
 }

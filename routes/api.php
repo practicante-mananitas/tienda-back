@@ -19,7 +19,10 @@ use App\Http\Controllers\API\AdminController;
 use App\Http\Controllers\API\AdminResumenController;
 use App\Http\Controllers\API\AdminFinanzasController;
 use App\Http\Controllers\API\UsuarioController;
+use App\Http\Controllers\API\SoporteController;
 use App\Http\Controllers\API\Subcategorycontroller;
+use App\Http\Controllers\UserFavoriteController;
+use App\Http\Controllers\ReviewController;
 
 use App\Http\Middleware\ActualizarUltimaActividad;
 use App\Http\Middleware\CheckRevokedToken;
@@ -130,6 +133,25 @@ Route::prefix('admin')->middleware('auth:api')->group(function () {
 
 Route::get('categories/{category}/featured-only-products', [CategoryFeaturedProductController::class, 'featuredProducts']);
 
+Route::post('/refresh-token', [AuthController::class, 'refresh']);
+
 
 // Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
 //     ->name('verification.verify');
+
+
+Route::middleware('auth:api')->group(function () {
+    Route::get('/favorites', [UserFavoriteController::class, 'index']);
+    Route::post('/favorites', [UserFavoriteController::class, 'store']);
+    Route::delete('/favorites/{productId}', [UserFavoriteController::class, 'destroy']);
+    
+    // Nueva ruta para verificar si un producto es favorito
+    Route::get('/favorites/check/{productId}', [UserFavoriteController::class, 'checkFavorite']);
+});
+
+
+Route::get('/products/{id}/reviews', [ReviewController::class, 'index']);
+Route::middleware('auth:api')->post('/products/{id}/reviews', [ReviewController::class, 'store']);
+
+// routes/api.php
+Route::post('/soporte', [SoporteController::class, 'enviarConsulta']);

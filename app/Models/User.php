@@ -64,4 +64,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
         $this->notify(new VerifyApiEmail());
     }
 
+    public function favorites()
+    {
+        return $this->belongsToMany(Product::class, 'user_favorites', 'user_id', 'product_id')->withTimestamps();
+    }
+
 }

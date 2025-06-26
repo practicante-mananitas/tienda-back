@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Http; // arriba en el archivo
 use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
+use Illuminate\Support\Str;
+use App\Models\RefreshToken;
+
 
 class AuthController extends Controller
 {
@@ -103,10 +106,24 @@ class AuthController extends Controller
             'token' => $token,
         ]);
 
+        $accessToken = JWTAuth::claims([
+            'exp' => now()->addMinutes(60)->timestamp  // Access token válido 1 hora
+        ])->fromUser($user);
+
+        $refreshToken = Str::random(60); // Refresh token aleatorio
+
+        // Guardar el refresh token en la base de datos
+        RefreshToken::create([
+            'user_id' => $user->id,
+            'token' => hash('sha256', $refreshToken),
+            'expires_at' => now()->addDays(15) // Expira en 15 días
+        ]);
+
         return response()->json([
-            'access_token' => $token,
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
             'token_type' => 'bearer',
-            'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'expires_in' => 3600,
             'session_id' => $actividad->id,
             'user' => [
                 'id' => $user->id,
@@ -115,6 +132,7 @@ class AuthController extends Controller
                 'role' => $user->role,
             ]
         ]);
+
     }
 
     public function me()
@@ -130,8 +148,23 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         try {
+            // Obtener usuario autenticado desde el token
+            $user = JWTAuth::parseToken()->authenticate();
+
+            // Invalidar el token JWT actual
             JWTAuth::invalidate(JWTAuth::getToken());
-            return response()->json(['message' => 'Sesión cerrada correctamente']);
+
+            // Eliminar todos los refresh tokens del usuario (opción 1)
+            RefreshToken::where('user_id', $user->id)->delete();
+
+            // --- Alternativa: eliminar sólo el refresh token recibido ---
+            // $refreshToken = $request->input('refresh_token');
+            // if ($refreshToken) {
+            //     $hashed = hash('sha256', $refreshToken);
+            //     RefreshToken::where('token', $hashed)->delete();
+            // }
+
+            return response()->json(['message' => 'Sesión cerrada correctamente y tokens eliminados']);
         } catch (\Exception $e) {
             return response()->json(['error' => 'No se pudo cerrar sesión'], 500);
         }
@@ -155,4 +188,39 @@ class AuthController extends Controller
         return redirect(env('FRONTEND_URL') . '/#/email-verified');
     }
         
+    public function refresh(Request $request)
+    {
+        $refreshToken = $request->input('refresh_token');
+
+        if (!$refreshToken) {
+            return response()->json(['message' => 'Refresh token requerido'], 400);
+        }
+
+        $hashed = hash('sha256', $refreshToken);
+
+        $record = \App\Models\RefreshToken::where('token', $hashed)
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (!$record) {
+            return response()->json(['message' => 'Refresh token inválido o expirado'], 401);
+        }
+
+        $user = User::find($record->user_id);
+
+        if (!$user) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        $newAccessToken = JWTAuth::claims([
+            'exp' => now()->addMinutes(60)->timestamp  // Otro 1 hora
+        ])->fromUser($user);
+
+        return response()->json([
+            'access_token' => $newAccessToken,
+            'token_type' => 'bearer',
+            'expires_in' => 3600
+        ]);
+    }
+
 }

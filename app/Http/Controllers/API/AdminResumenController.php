@@ -23,7 +23,10 @@ class AdminResumenController extends Controller
     // Productos con poco stock (menos de 10)
     public function productosBajoStock()
     {
-        $productos = Product::where('stock', '<', 10)->get();
+        $productos = Product::with('category')  // carga la categoría
+            ->where('stock', '<', 10)
+            ->get();
+
         return response()->json([
             'count' => $productos->count(),
             'productos' => $productos,
