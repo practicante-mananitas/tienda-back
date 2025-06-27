@@ -21,6 +21,7 @@ use App\Http\Controllers\API\AdminFinanzasController;
 use App\Http\Controllers\API\UsuarioController;
 use App\Http\Controllers\API\SoporteController;
 use App\Http\Controllers\API\Subcategorycontroller;
+use App\Http\Controllers\API\SepomexController;
 use App\Http\Controllers\UserFavoriteController;
 use App\Http\Controllers\ReviewController;
 
@@ -155,3 +156,5 @@ Route::middleware('auth:api')->post('/products/{id}/reviews', [ReviewController:
 
 // routes/api.php
 Route::post('/soporte', [SoporteController::class, 'enviarConsulta']);
+
+Route::get('/sepomex/estado/{id}', [SepomexController::class, 'porEstado']);
