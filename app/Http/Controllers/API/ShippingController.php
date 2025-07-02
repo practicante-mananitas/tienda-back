@@ -10,20 +10,14 @@ use App\Services\SkydropxService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ShippingController extends Controller
 {
     protected $skydropx;
 
-    // Define un umbral de llenado de volumen para un empaquetado más "conveniente"
-    // No llenar la caja más allá de este porcentaje de su volumen total.
-    // Se ha ajustado a 80% para un empaquetado más realista.
-    const VOLUME_FILL_THRESHOLD = 0.80; // 80% del volumen total de la caja
-
-    // Define un umbral para considerar que un producto ocupa una "dimensión crítica" de la caja.
-    // Si una dimensión del producto (ya rotado para caber) es > este % de la dimensión de la caja,
-    // se considera un "ajuste apretado" que dificulta añadir más items a una caja ya iniciada.
-    const MAJOR_DIMENSION_UTILIZATION_THRESHOLD = 0.85; // 85%
+    const VOLUME_FILL_THRESHOLD = 0.80;
+    const MAJOR_DIMENSION_UTILIZATION_THRESHOLD = 0.85;
 
     public function __construct(SkydropxService $skydropx)
     {
@@ -43,7 +37,7 @@ class ShippingController extends Controller
 
         Log::info('Items recibidos', ['items' => $items]);
 
-        // --- NUEVO PASO: Consolidar ítems y validar stock ---
+        // Consolidar ítems y validar stock
         $consolidatedItems = [];
         foreach ($items as $item) {
             $productId = $item['product_id'];
@@ -58,34 +52,31 @@ class ShippingController extends Controller
             $consolidatedItems[$productId]['quantity'] += $quantity;
         }
 
-        $productsToProcess = []; // Aquí guardaremos los items ya validados con la cantidad total
+        $productsToProcess = [];
         $productsWithInsufficientStock = [];
 
         foreach ($consolidatedItems as $productId => $itemData) {
             $product = Product::find($productId);
 
             if (!$product) {
-                // Manejar caso donde el producto no existe (ej. fue eliminado)
                 return response()->json([
                     'error' => "Uno o más productos en el carrito no fueron encontrados.",
                     'details' => ['product_id' => $productId, 'message' => 'Producto no existe.']
                 ], 404);
             }
 
-            // Validar si la cantidad total solicitada es mayor que el stock disponible
             if ($itemData['quantity'] > $product->stock) {
                 $productsWithInsufficientStock[] = [
                     'product_id' => $productId,
-                    'product_name' => $product->name, // Asume que el modelo Product tiene un campo 'name'
+                    'product_name' => $product->name,
                     'requested_quantity' => $itemData['quantity'],
                     'available_stock' => $product->stock,
                 ];
             } else {
-                // Si hay suficiente stock, añadir a la lista para procesamiento posterior
                 $productsToProcess[] = [
                     'product_id' => $productId,
                     'quantity' => $itemData['quantity'],
-                    'product_details' => $product // Pasa el objeto Product completo para evitar re-consultas
+                    'product_details' => $product
                 ];
             }
         }
@@ -95,46 +86,42 @@ class ShippingController extends Controller
             return response()->json([
                 'error' => 'Stock insuficiente para algunos productos. Por favor, ajusta las cantidades en tu carrito.',
                 'details' => $productsWithInsufficientStock
-            ], 400); // Usamos 400 Bad Request o 422 Unprocessable Entity
+            ], 400);
         }
-        // --- FIN: Consolidar ítems y validar stock ---
 
-        // --- Paso 1: Procesar y ordenar los productos, calculando el peso facturable ---
-        // Ahora usamos $productsToProcess que ya tiene los ítems consolidados y validados
+        // Procesar y ordenar productos con peso facturable
         $processedItems = collect($productsToProcess)->map(function($item) {
-            $product = $item['product_details']; // Ya tenemos el objeto Product cargado
+            $product = $item['product_details'];
 
             $productDetails = [
                 'length' => (float) $product->length,
                 'width'  => (float) $product->width,
                 'height' => (float) $product->height,
-                'weight' => (float) $product->weight, // Peso real del producto
+                'weight' => (float) $product->weight,
                 'id'     => $product->id,
             ];
 
             $productDetails['volume'] = $this->volumen($productDetails);
-            
+
             $pesoVolumetricoProducto = $productDetails['volume'] / 5000;
 
             $productDetails['peso_a_usar'] = max($productDetails['weight'], $pesoVolumetricoProducto);
-            
-            // Opcional: Asegura que el peso mínimo facturable por unidad sea 1kg si es menor a 1kg y mayor a 0.
+
             if ($productDetails['peso_a_usar'] < 1 && $productDetails['peso_a_usar'] > 0) {
-                $productDetails['peso_a_usar'] = 1; 
+                $productDetails['peso_a_usar'] = 1;
             }
-            
+
             return [
                 'product_details' => $productDetails,
-                'quantity' => $item['quantity'], // Usamos la cantidad consolidada
+                'quantity' => $item['quantity'],
             ];
-        })->filter() // Filtra cualquier null si Product::find no encontrara algo (ya lo manejamos arriba, pero buena práctica)
+        })->filter()
           ->sortByDesc(function($item) {
-            return $item['product_details']['volume'];
-        })->values()->all();
+              return $item['product_details']['volume'];
+          })->values()->all();
 
         Log::info('Items procesados con peso facturable y ordenados', ['items' => $processedItems]);
 
-        // Definición de los tipos de cajas disponibles con sus dimensiones y volumen precalculado
         $cajas = [
             'chica' => ['length' => 30, 'width' => 20, 'height' => 15, 'volume' => 30*20*15],
             'mediana' => ['length' => 40, 'width' => 35, 'height' => 20, 'volume' => 40*35*20],
@@ -142,32 +129,31 @@ class ShippingController extends Controller
         ];
 
         $cajasLlenas = [];
-        
-        // --- Paso 2: Empaquetar cada producto individualmente en las cajas ---
-        // Se itera a través de cada producto en el orden ya definido (por volumen descendente).
-        foreach ($processedItems as $processedItem) {
-            $productToPack = $processedItem['product_details']; 
 
-            for ($i = 0; $i < $processedItem['quantity']; $i++) { // Itera por la cantidad total consolidada
+        // UUID para agrupar productos en envios_manual si hay falla
+        $pedidoUid = Str::uuid()->toString();
+
+        // Intentar empacar productos en cajas
+        foreach ($processedItems as $processedItem) {
+            $productToPack = $processedItem['product_details'];
+
+            for ($i = 0; $i < $processedItem['quantity']; $i++) {
                 $metido = false;
 
-                // --- Intenta meter el producto en una caja existente ---
-                // Se itera sobre las cajas ya existentes para ver si el producto actual cabe.
-                foreach ($cajasLlenas as &$caja) { // Usamos & para modificar la caja original en el array
+                // Intentar meter en cajas ya existentes
+                foreach ($cajasLlenas as &$caja) {
                     $fittedDimensions = $this->cabeEnCaja($productToPack, $caja);
 
-                    if ($fittedDimensions !== false) { // Si el producto cabe dimensionalmente en esta caja
+                    if ($fittedDimensions !== false) {
                         $volumenCaja = $this->volumen($caja);
                         $volumenUsadoEnCaja = array_sum(array_map(fn($p) => $this->volumen($p), $caja['productos']));
                         $volumenProductoActual = $this->volumen($productToPack);
-                        
+
                         $pesoActualEnCaja = $caja['weight'];
-                        $pesoTotalConNuevoProducto = $pesoActualEnCaja + $productToPack['peso_a_usar'];
 
                         $boxAlreadyHasProducts = !empty($caja['productos']);
                         $currentProductIsTightFit = false;
 
-                        // Se verifica si el producto actual (en su orientación ajustada) usa una "dimensión crítica" de la caja
                         if (
                             $fittedDimensions[0] > $caja['length'] * self::MAJOR_DIMENSION_UTILIZATION_THRESHOLD ||
                             $fittedDimensions[1] > $caja['width'] * self::MAJOR_DIMENSION_UTILIZATION_THRESHOLD ||
@@ -175,42 +161,33 @@ class ShippingController extends Controller
                         ) {
                             $currentProductIsTightFit = true;
                         }
-                        
-                        // Criterios para "convenientemente caber" en una caja existente:
-                        // 1. El producto cabe dimensionalmente (ya verificado por $fittedDimensions !== false).
-                        // 2. El volumen total (productos existentes + nuevo producto) no excede el umbral de llenado.
-                        // 3. El peso total de la caja con el nuevo producto no excede el límite de 20 kg.
-                        // 4. Y MUY IMPORTANTE: Evitar colocar un producto que genera un "ajuste apretado"
-                        //    en una caja que *ya contiene otros productos*. Si la caja está vacía,
-                        //    un "ajuste apretado" es aceptable, ya que podría ser el único artículo grande.
+
                         if (
-                            ($volumenProductoActual + $volumenUsadoEnCaja <= $volumenCaja * self::VOLUME_FILL_THRESHOLD) &&
-                            ($pesoTotalConNuevoProducto <= 20) &&
-                            !($boxAlreadyHasProducts && $currentProductIsTightFit)
+                            $volumenProductoActual + $volumenUsadoEnCaja <= $volumenCaja * self::VOLUME_FILL_THRESHOLD &&
+                            $fittedDimensions[0] <= $caja['length'] &&
+                            $fittedDimensions[1] <= $caja['width'] &&
+                            $fittedDimensions[2] <= $caja['height']
                         ) {
                             $caja['productos'][] = $productToPack;
                             $caja['weight'] += $productToPack['peso_a_usar'];
                             $metido = true;
-                            // Si el producto que acabamos de añadir genera un "ajuste apretado",
-                            // marcamos la caja para que futuros intentos de añadir más items sean más estrictos.
-                            if ($currentProductIsTightFit) {
-                                $caja['has_tight_fit'] = true;
-                            }
-                            break; // El producto ha sido metido, se pasa al siguiente producto
+
+                            break;
                         }
                     }
                 }
+                unset($caja);
 
-                // --- Si el producto no se pudo meter en una caja existente, intenta crear una nueva ---
+                // Si no se metió en cajas existentes, intentar crear nueva caja
                 if (!$metido) {
                     $asignado = false;
                     foreach ($cajas as $tipo => $medidasCaja) {
                         $fittedDimensionsNewBox = $this->cabeEnCaja($productToPack, $medidasCaja);
 
                         if ($fittedDimensionsNewBox !== false) {
-                            if ($productToPack['peso_a_usar'] <= 20 && 
-                                $this->volumen($productToPack) <= $this->volumen($medidasCaja) * self::VOLUME_FILL_THRESHOLD) {
-                                
+                            if (
+                                $this->volumen($productToPack) <= $this->volumen($medidasCaja) * self::VOLUME_FILL_THRESHOLD
+                            ) {
                                 $isTightFitForNewBox = false;
                                 if (
                                     $fittedDimensionsNewBox[0] > $medidasCaja['length'] * self::MAJOR_DIMENSION_UTILIZATION_THRESHOLD ||
@@ -225,9 +202,9 @@ class ShippingController extends Controller
                                     'length' => $medidasCaja['length'],
                                     'width' => $medidasCaja['width'],
                                     'height' => $medidasCaja['height'],
-                                    'weight' => $productToPack['peso_a_usar'], // El peso inicial de la nueva caja es el peso facturable del producto
-                                    'productos' => [$productToPack], // Se agrega el producto con sus dimensiones y peso facturable
-                                    'has_tight_fit' => $isTightFitForNewBox // Se marca si el primer producto en la nueva caja es un ajuste apretado
+                                    'weight' => $productToPack['peso_a_usar'],
+                                    'productos' => [$productToPack],
+                                    'has_tight_fit' => $isTightFitForNewBox
                                 ];
                                 $cajasLlenas[] = $newBox;
                                 $asignado = true;
@@ -236,76 +213,85 @@ class ShippingController extends Controller
                         }
                     }
 
-                    // Si el producto aún no se pudo asignar, se requiere cotización manual
                     if (!$asignado) {
-                        DB::table('envios_manual')->insert([
-                            'user_id'    => $user->id,
-                            'address_id' => $address->id,
-                            'peso'       => $productToPack['weight'], 
-                            'alto'       => $productToPack['height'],
-                            'ancho'      => $productToPack['width'],
-                            'largo'      => $productToPack['length'],
-                            'product_id' => $productToPack['id'],
-                            'cantidad'   => 1, // Se registra como 1 porque es una unidad la que no cupo
-                            'created_at' => now(),
-                            'updated_at' => now()
-                        ]);
-
-                        return response()->json([
-                            'manual' => true,
-                            'message' => 'Un producto no cabe en ninguna caja estándar o no se puede empacar convenientemente. Se requiere cotización manual.'
-                        ], 400);
+                        // Si no cabe en ninguna caja, crear caja personalizada
+                        $customBox = [
+                            'tipo' => 'personalizada',
+                            'length' => $productToPack['length'],
+                            'width' => $productToPack['width'],
+                            'height' => $productToPack['height'],
+                            'weight' => $productToPack['peso_a_usar'],
+                            'productos' => [$productToPack],
+                            'has_tight_fit' => true,
+                        ];
+                        $cajasLlenas[] = $customBox;
                     }
                 }
             }
         }
-        // !!! IMPORTANTE: Destruye la referencia ($caja) después del bucle con '&' !!!
-        unset($caja); 
 
         Log::info('Cajas agrupadas después de la lógica de empaquetado (estado final para cotización)', ['cajas' => $cajasLlenas]);
 
-        // --- Paso 3: Cotizar cada caja con Skydropx ---
         $tarifas = [];
-        $diasEntregasIndividuales = []; // Inicialización del array para almacenar los días de entrega de cada caja
+        $diasEntregasIndividuales = [];
 
+        // Cotizar cajas con productos agrupados
         foreach ($cajasLlenas as $caja) {
-            $pesoFacturableCaja = $caja['weight']; 
+            $pesoFacturableCaja = $caja['weight'];
 
             if ($pesoFacturableCaja < 1) $pesoFacturableCaja = 1;
 
-            $cotizacion = $this->cotizarCaja($token, $address, $caja, $pesoFacturableCaja); 
-            if ($cotizacion['error'] ?? false) {
-                Log::error('Error al cotizar una caja con Skydropx. Respuesta de cotizarCaja: ', ['cotizacion_error' => $cotizacion]);
-                return response()->json(['error' => 'Error al cotizar una caja con Skydropx.'], 500);
+            $cotizacion = $this->cotizarCaja($token, $address, $caja, $pesoFacturableCaja);
+
+            if (($cotizacion['error'] ?? false) === true) {
+                // Guardar TODO el pedido en envios_manual con pedido_uid
+                foreach ($productsToProcess as $producto) {
+                    $prod = $producto['product_details'];
+                    $cant = $producto['quantity'];
+
+                    DB::table('envios_manual')->insert([
+                        'pedido_uid' => $pedidoUid,
+                        'user_id'    => $user->id,
+                        'address_id' => $address->id,
+                        'peso'       => $prod['weight'],
+                        'alto'       => $prod['height'],
+                        'ancho'      => $prod['width'],
+                        'largo'      => $prod['length'],
+                        'product_id' => $prod['id'],
+                        'cantidad'   => $cant,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                }
+
+                return response()->json([
+                    'manual' => true,
+                    'message' => 'Se requiere cotizacion manual para este pedido, le llegara a su correo lo mas pronto posible, gracias.',
+                    'pedido_uid' => $pedidoUid
+                ], 400);
             }
-            $tarifas[] = (float) $cotizacion['total'];
-            $diasEntregasIndividuales[] = (int) ($cotizacion['days'] ?? 0); // Almacena los días de entrega de la cotización individual
+
+            $tarifas[] = [
+                'total' => (float) $cotizacion['total'],
+                'days' => (int) ($cotizacion['days'] ?? 0),
+                'provider_name' => $cotizacion['provider_name'] ?? 'desconocido',
+            ];
+
+            $diasEntregasIndividuales[] = (int) ($cotizacion['days'] ?? 0);
         }
 
-        // Calcula el máximo de días de entrega entre todas las cajas
-        // Si no hay días (e.g., todas las cotizaciones fallaron), devuelve null.
         $maxDiasEntrega = !empty($diasEntregasIndividuales) ? max($diasEntregasIndividuales) : null;
 
-        // --- Paso 4: Devolver la respuesta final ---
         Log::info('Cajas agrupadas para respuesta final JSON', ['cajas_finales_response' => $cajasLlenas]);
 
         return response()->json([
-            'total_envio' => array_sum($tarifas),
+            'total_envio' => array_sum(array_column($tarifas, 'total')),
             'cajas_usadas' => $cajasLlenas,
             'tarifas_individuales' => $tarifas,
-            'dias_entrega' => $maxDiasEntrega, // Incluye los días de entrega en la respuesta final
+            'dias_entrega' => $maxDiasEntrega,
         ]);
     }
 
-    /**
-     * Realiza una cotización para una caja específica con Skydropx.
-     *
-     * @param string $token Token de autenticación de Skydropx.
-     * @param \App\Models\Address $address Dirección de destino.
-     * @param array $caja Datos de la caja (dimensiones y peso).
-     * @param float $pesoFacturable Peso facturable de la caja (el que se envía a Skydropx).
-     * @return array Array con el total de la cotización y los días de entrega, o un indicador de error.
-     */
     private function cotizarCaja($token, $address, $caja, $pesoFacturable)
     {
         $addressFrom = [
@@ -380,8 +366,8 @@ class ShippingController extends Controller
 
         while (($data['is_completed'] ?? false) === false && $reintentos < $maxReintentos) {
             sleep($tiempoEspera);
-            $quotationId = $data['id'] ?? ''; 
-            
+            $quotationId = $data['id'] ?? '';
+
             $followUpResponse = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $token,
                 'Content-Type' => 'application/json',
@@ -412,45 +398,32 @@ class ShippingController extends Controller
             ->first(fn($r) => ($r['provider_name'] ?? '') === 'dhl' && !empty($r['total']))
             ?? collect($data['rates'] ?? [])->first(fn($r) => !empty($r['total']));
 
-        // Asegúrate de retornar los días de entrega de la tarifa seleccionada
-        return $rate && isset($rate['total']) 
-            ? ['total' => (float) $rate['total'], 'days' => (int) ($rate['days'] ?? 0)] 
+        return $rate && isset($rate['total'])
+            ? [
+                'total' => (float) $rate['total'],
+                'days' => (int) ($rate['days'] ?? 0),
+                'provider_name' => $rate['provider_name'] ?? 'desconocido',
+            ]
             : ['error' => true, 'message' => 'No se encontraron tarifas válidas.'];
     }
 
-    /**
-     * Determina si un producto puede caber en una caja, considerando todas sus posibles rotaciones.
-     * Retorna el array de dimensiones rotadas si cabe, o false si no.
-     *
-     * @param array $producto Arreglo con 'length', 'width', 'height' del producto.
-     * @param array $caja Datos de la caja con 'length', 'width', 'height'.
-     * @return array|false Array de dimensiones rotadas (largo, ancho, alto) si cabe, false en caso contrario.
-     */
     private function cabeEnCaja(array $producto, array $caja)
     {
         $dimensiones = [(float) $producto['length'], (float) $producto['width'], (float) $producto['height']];
         $cajaDims = [(float) $caja['length'], (float) $caja['width'], (float) $caja['height']];
 
         foreach ($this->permutaciones($dimensiones) as $rotada) {
-            // Se asegura que las dimensiones del producto rotado no excedan las de la caja
             if (
                 $rotada[0] <= $cajaDims[0] &&
                 $rotada[1] <= $cajaDims[1] &&
                 $rotada[2] <= $cajaDims[2]
             ) {
-                return $rotada; // Retorna las dimensiones rotadas que sí caben
+                return $rotada;
             }
         }
-        return false; // No cabe en ninguna orientación
+        return false;
     }
 
-    /**
-     * Genera todas las 6 posibles permutaciones de las dimensiones de un objeto 3D.
-     * Esto permite verificar si un objeto cabe en un espacio al rotarlo.
-     *
-     * @param array $dim Array de 3 dimensiones [largo, ancho, alto].
-     * @return array Array de arrays, cada uno representando una permutación de las dimensiones.
-     */
     private function permutaciones(array $dim): array
     {
         return [
@@ -463,14 +436,8 @@ class ShippingController extends Controller
         ];
     }
 
-    /**
-     * Calcula el volumen de un objeto (producto o caja) dadas sus dimensiones.
-     *
-     * @param array $dim Array con 'length', 'width', 'height'.
-     * @return float El volumen calculado.
-     */
     private function volumen(array $dim): float
     {
-        return (float) $dim['length'] * (float) $dim['width'] * (float) $dim['height'];
+        return $dim['length'] * $dim['width'] * $dim['height'];
     }
 }

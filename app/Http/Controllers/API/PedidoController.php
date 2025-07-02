@@ -193,24 +193,78 @@ class PedidoController extends Controller
      */
     public function excedidos()
     {
-        $pedidos = DB::table('envios_manual')
+        // Obtener todos los envíos manuales agrupados por pedido_uid
+        $pedidosRaw = DB::table('envios_manual')
             ->join('users', 'envios_manual.user_id', '=', 'users.id')
             ->join('addresses', 'envios_manual.address_id', '=', 'addresses.id')
             ->leftJoin('address_extras', 'addresses.id', '=', 'address_extras.address_id')
             ->leftJoin('products', 'envios_manual.product_id', '=', 'products.id')
             ->select(
-                'users.name', 'users.email', 'users.phone',
-                'addresses.*',
-                'address_extras.tipo_lugar', 'address_extras.nombre_casa', 'address_extras.barrio',
-                'envios_manual.*',
-                'products.name as product_name'
+                'envios_manual.pedido_uid',
+                'users.name as user_name',
+                'users.email as user_email',
+                'users.phone as user_phone',
+                'addresses.id as address_id',
+                'addresses.calle',
+                'addresses.codigo_postal',
+                'addresses.municipio',
+                'addresses.estado',
+                'addresses.colonia',
+                'address_extras.tipo_lugar',
+                'address_extras.nombre_casa',
+                'address_extras.barrio',
+                'envios_manual.peso',
+                'envios_manual.alto',
+                'envios_manual.ancho',
+                'envios_manual.largo',
+                'envios_manual.cantidad',
+                'products.id as product_id',
+                'products.name as product_name',
+                'envios_manual.created_at'
             )
             ->orderBy('envios_manual.created_at', 'desc')
-            ->get()
-            ->groupBy('user_id');
+            ->get();
 
-        return response()->json($pedidos);
+        // Agrupar por pedido_uid para que cada pedido tenga sus productos en un array
+        $pedidosAgrupados = $pedidosRaw->groupBy('pedido_uid')->map(function($items, $pedido_uid) {
+            $primerItem = $items->first();
+
+            return [
+                'pedido_uid' => $pedido_uid,
+                'user' => [
+                    'name' => $primerItem->user_name,
+                    'email' => $primerItem->user_email,
+                    'phone' => $primerItem->user_phone,
+                ],
+                'address' => [
+                    'id' => $primerItem->address_id,
+                    'calle' => $primerItem->calle,
+                    'codigo_postal' => $primerItem->codigo_postal,
+                    'municipio' => $primerItem->municipio,
+                    'estado' => $primerItem->estado,
+                    'colonia' => $primerItem->colonia,
+                    'tipo_lugar' => $primerItem->tipo_lugar,
+                    'nombre_casa' => $primerItem->nombre_casa,
+                    'barrio' => $primerItem->barrio,
+                ],
+                'productos' => $items->map(function($item) {
+                    return [
+                        'product_id' => $item->product_id,
+                        'product_name' => $item->product_name,
+                        'cantidad' => $item->cantidad,
+                        'peso' => $item->peso,
+                        'alto' => $item->alto,
+                        'ancho' => $item->ancho,
+                        'largo' => $item->largo,
+                    ];
+                })->values(),
+                'created_at' => $primerItem->created_at,
+            ];
+        })->values();
+
+        return response()->json($pedidosAgrupados);
     }
+
 
     // <--- NUEVO MÉTODO: Actualizar el estado de envío de un pedido ---
     /**
