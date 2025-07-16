@@ -206,13 +206,13 @@ class PaymentsController extends Controller
             $payload = [
                 'items' => $mpItems,
                 'back_urls' => [
-                    'success' => 'https://67ea-2806-104e-1b-1397-e520-a22b-241c-274a.ngrok-free.app/#/pago/exito?pedido_id=' . $pedido->id,
-                    'failure' => 'https://67ea-2806-104e-1b-1397-e520-a22b-241c-274a.ngrok-free.app/pago/error',
-                    'pending' => 'https://67ea-2806-104e-1b-1397-e520-a22b-241c-274a.ngrok-free.app/pago/pendiente',
+                    'success' => 'https://tienda-prueba.horizonwebmx.com/#/pago/exito?pedido_id=' . $pedido->id,
+                    'failure' => 'https://tienda-prueba.horizonwebmx.com/pago/error',
+                    'pending' => 'https://tienda-prueba.horizonwebmx.com/pago/pendiente',
                 ],
                 'auto_return' => 'approved',
                 'external_reference' => $pedido->external_reference,
-                'notification_url' => 'https://f5a2-2806-104e-1b-1397-e520-a22b-241c-274a.ngrok-free.app/api/webhook/mercadopago',
+                'notification_url' => 'https://apitienda.horizonwebmx.com/api/webhook/mercadopago',
                 'metadata' => [
                     'address_id' => $address_id,
                     'user_id' => $user->id,
