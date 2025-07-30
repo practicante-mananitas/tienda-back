@@ -9,6 +9,8 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Notifications\VerifyApiEmail;
 use App\Models\Cart;
 use App\Models\Address;
+use App\Notifications\CustomResetPassword; // Asegúrate de que esté este "use"
+
 
 class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 {
@@ -68,5 +70,11 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return $this->belongsToMany(Product::class, 'user_favorites', 'user_id', 'product_id')->withTimestamps();
     }
+
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new CustomResetPassword($token));
+    }
+
 
 }

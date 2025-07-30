@@ -24,6 +24,7 @@ use App\Http\Controllers\API\SubcategoryController;
 use App\Http\Controllers\API\SepomexController;
 use App\Http\Controllers\UserFavoriteController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\ForgotPasswordController;
 
 use App\Http\Middleware\ActualizarUltimaActividad;
 use App\Http\Middleware\CheckRevokedToken;
@@ -158,3 +159,7 @@ Route::middleware('auth:api')->post('/products/{id}/reviews', [ReviewController:
 Route::post('/soporte', [SoporteController::class, 'enviarConsulta']);
 
 Route::get('/sepomex/estado/{id}', [SepomexController::class, 'porEstado']);
+
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink']);
+Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword']);
+
